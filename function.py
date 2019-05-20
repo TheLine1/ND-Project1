@@ -56,13 +56,7 @@ def plot_n(img, title, cmap=''):
 # =============================================================================
     
 # Define color selection criteria
-def threshold(red, green, blue, color_img):
-    red_threshold   = red
-    green_threshold = green   
-    blue_threshold  = blue
-
-    #rgb_threshold = np.array([red_threshold, green_threshold, blue_threshold])
-    rgb_threshold = [red_threshold, green_threshold, blue_threshold]
+def threshold(rgb_threshold, color_img, plot_flag):
     
     # Do a boolean or with the "|" character to identify
     # Mask pixels below the threshold
@@ -70,28 +64,14 @@ def threshold(red, green, blue, color_img):
                         (color_img[:,:,1] < rgb_threshold[1]) | \
                         (color_img[:,:,2] < rgb_threshold[2]) 
                     
+    if(plot_flag):
+        plt.imshow(color_thres_img, cmap='gray_r')
+        plt.show()
+        
     
     
-    return rgb_threshold, color_thres_img
- 
-
-# ROI triangle
-def tri_roi(l_bot, r_bot, apex, xsize, ysize):
-    
-    fit_left = np.polyfit((l_bot[0], apex[0]), (l_bot[1], apex[1]), 1)
-    fit_right = np.polyfit((r_bot[0], apex[0]), (r_bot[1], apex[1]), 1)
-    fit_bottom = np.polyfit((l_bot[0], r_bot[0]), (l_bot[1], r_bot[1]), 1)
-    
-    # Find the region inside the lines
-    XX, YY = np.meshgrid(np.arange(0, xsize), np.arange(0, ysize))
-    region_thresholds = (YY > (XX*fit_left[0] + fit_left[1])) & \
-                        (YY > (XX*fit_right[0] + fit_right[1])) & \
-                        (YY < (XX*fit_bottom[0] + fit_bottom[1]))
-    return region_thresholds
-
-
-
-    
+    return color_thres_img
+     
 # =============================================================================
 #                       0|                |
 #                        |                |
@@ -103,24 +83,45 @@ def tri_roi(l_bot, r_bot, apex, xsize, ysize):
 #                        |   /       \    |
 #                       0|   ---------    |960
 #                     540
-# =============================================================================
-def polygon_roi(img, imshape, y_line, x_left, x_right, rgb_threshold):
+
+def polygon_roi(img, imshape, bottom_left, bottom_right, y_line, x_left, x_right, rgb_threshold, plot_flag):
+    
     # Next we'll create a masked edges image using cv2.fillPoly()
     mask = np.zeros_like(img)   
     ignore_mask_color = 255
-    vertices = np.array([[(0,imshape[0]),(x_left, y_line), (x_right, y_line), \
-                          (imshape[1],imshape[0])]], dtype=np.int32)
+
+    vertices = np.array([[(bottom_left,imshape[0]),(x_left, y_line), (x_right, y_line), \
+                          (bottom_right,imshape[0])]], dtype=np.int32) 
+    
+    #vertices = np.array([[(0,imshape[0]),(x_left, y_line), (x_right, y_line), \
+    #                      (imshape[1],imshape[0])]], dtype=np.int32)
     
     cv2.fillPoly(mask, vertices, ignore_mask_color)
     masked_edges = cv2.bitwise_and(img, mask)
-    # Mask pixels below the threshold
-    color_thresholds_polygon = (img[:,:,0] < rgb_threshold[0]) | \
-                                (img[:,:,1] < rgb_threshold[1]) | \
-                                (img[:,:,2] < rgb_threshold[2])
+# =============================================================================
+#     # Mask pixels below the threshold
+#     color_thresholds_polygon = (masked_edges[:,:,0] < rgb_threshold[0]) | \
+#                                 (masked_edges[:,:,1] < rgb_threshold[1]) | \
+#                                 (masked_edges[:,:,2] < rgb_threshold[2])
+# =============================================================================
                         
-    print(vertices.shape)
+    print('Vertices.shape'+str(vertices.shape))
+    
+    if(plot_flag):
+        roi_marked_img = cv2.polylines(img, vertices, True , (255,0,0),3 )
+        
+        #plot Images
+        images = [roi_marked_img, masked_edges]
+        titels = ['ROI marked Image','masked_edges']
+        plot_n(images,titels,'gray_r')
 
-    return masked_edges, color_thresholds_polygon, vertices
+        # save the ROI Image
+        #img = cv2.cvtColor(roi_marked_img,cv2.COLOR_RGB2BGR)
+        #write_name = 'output_images/ROI.png'
+        #cv2.imwrite(write_name,img)
+
+    return masked_edges, vertices
+
 
 def mask_img(vertices, shape, color_img, bin_image):
     color_select   = np.copy(color_img)
